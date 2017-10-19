@@ -1,7 +1,7 @@
 angular.module('app.admin.add-version-modal', [])
-  .controller('AddVersionModalController', ['$scope', '$http', 'DataService', 'Notification', '$uibModalInstance', 'PubSub',
-    function($scope, $http, DataService, Notification, $uibModalInstance, PubSub) {
-      $scope.availableChannels = DataService.availableChannels;
+  .controller('AddVersionModalController', ['$scope', '$http', 'DataService', 'Notification', '$uibModalInstance',
+    function($scope, $http, DataService, Notification, $uibModalInstance) {
+      $scope.DataService = DataService;
 
       $scope.version = {
         name: '',
@@ -21,22 +21,5 @@ angular.module('app.admin.add-version-modal', [])
       $scope.closeModal = function() {
         $uibModalInstance.dismiss();
       };
-
-      // Watch for changes to data content and update local data accordingly.
-      var uid1 = PubSub.subscribe('data-change', function() {
-        $scope.availableChannels = DataService.availableChannels;
-
-        $scope.version = {
-          name: '',
-          notes: '',
-          channel: {
-            name: DataService.availableChannels[0]
-          }
-        };
-      });
-
-      $scope.$on('$destroy', function() {
-        PubSub.unsubscribe(uid1);
-      });
     }
   ]);

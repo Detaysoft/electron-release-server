@@ -32,12 +32,24 @@ angular.module('app.core.data.service', [
       };
 
       self.filetypes = {
-        windows_64: ['.exe', '.msi'],
-        windows_32: ['.exe', '.msi'],
-        osx_64: ['.dmg', '.pkg', '.mas'],
-        linux_64: ['.deb', '.gz', '.rpm', '.AppImage'],
-        linux_32: ['.deb', '.gz', '.rpm', '.AppImage']
+        windows_64: '.exe',
+        windows_32: '.exe',
+        osx_64: '.dmg',
+        linux_64: '.deb',
+        linux_32: '.deb'
       };
+
+      /**
+       * An array of all available release channels
+       * TODO: Make this dynamic by fetching from the api
+       * @type {Array}
+       */
+      self.availableChannels = [
+        'stable',
+        'rc',
+        'beta',
+        'alpha'
+      ];
 
       /**
        * Compare version objects using semantic versioning.
@@ -523,30 +535,32 @@ angular.module('app.core.data.service', [
       });
 
       /**
-       * Retrieve & subscribe to all version, channels & asset data.
+       * Retrieve & subscribe to all version & asset data.
        * @return {Promise} Resolved once data has been retrieved
        */
       self.initialize = function() {
-        return Promise.all([
-            // Get the initial set of releases from the server.
-            // XXX This will also subscribe us to future changes regarding releases
-            $sails.get('/api/version'),
-
-            // Get available channels
-            $sails.get('/api/channel'),
-
-            // Only sent to watch for asset updates
-            $sails.get('/api/asset')
-          ])
-          .then(([versions, channels]) => {
-            self.data = versions.data;
+        var deferred = $q.defer();
+        // Get the initial set of releases from the server.
+        // XXX This will also subscribe us to future changes regarding releases
+        $sails.get('/api/version')
+          .success(function(data) {
+            self.data = data;
             self.sortVersions();
-            self.availableChannels = channels.data.map(channel => channel.name);
-            
-            PubSub.publish('data-change');
+            deferred.resolve(true);
 
+            PubSub.publish('data-change');
+          })
+          .error(function(data, status) {
+            deferred.reject(data);
+          });
+
+        // Only sent to watch for asset updates
+        $sails.get('/api/asset')
+          .success(function(data) {
             $log.log('Should be subscribed!');
           });
+
+        return deferred.promise;
       };
 
       /**
@@ -558,9 +572,6 @@ angular.module('app.core.data.service', [
        * @return {Object}          Latest release data object
        */
       self.getLatestReleases = function(platform, archs, channel) {
-        if (!self.availableChannels) {
-          return;
-        }
 
         var channelIndex = self.availableChannels.indexOf(channel);
 
@@ -586,16 +597,16 @@ angular.module('app.core.data.service', [
         _.forEach(archs, function(arch) {
           var platformName = platform + '_' + arch;
 
-          var filetypes = self.filetypes[platformName];
+          var filetype = self.filetypes[platformName];
 
-          if (!filetypes) {
+          if (!filetype) {
             return;
           }
           _.forEach(versions, function(version) {
             _.forEach(version.assets, function(asset) {
               if (
                 asset.platform === platformName &&
-                filetypes.includes(asset.filetype)
+                asset.filetype === filetype
               ) {
                 var matchedAsset = _.clone(asset);
                 matchedAsset.version = version.name;
